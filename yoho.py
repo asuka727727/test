@@ -147,7 +147,8 @@ def plot_graphs(frame_distances, frame_triangle_areas, initial_distance, initial
 
     # 耳と肩の距離のグラフ
     axs[0].plot(frame_distances)
-    axs[0].axhline(y=initial_distance, color='r', linestyle='--', label='Initial Distance')
+    if initial_distance is not None:  # initial_distanceがNoneでない場合のみ実行
+        axs[0].axhline(y=initial_distance, color='r', linestyle='--', label='Initial Distance')
     axs[0].set_xlabel('Frame')
     axs[0].set_ylabel('Ear to Shoulder Distance')
     axs[0].legend()
