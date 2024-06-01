@@ -222,7 +222,7 @@ def main():
                
         # 撮影開始時の三角形の面積を計算
         initial_triangle_area = calculate_triangle_area(keypoints_list[0], scores_list[0])
-　　　　if initial_triangle_area is None:
+　　　  if initial_triangle_area is None:
     　　　　　initial_triangle_area = 0 
         
         # 三角形の面積の変化率を計算
