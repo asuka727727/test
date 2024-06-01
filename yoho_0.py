@@ -149,23 +149,25 @@ def plot_graphs(frame_distances, frame_triangle_areas, initial_distance, initial
     fig, axs = plt.subplots(2, 1, figsize=(10, 8))
 
     # 耳と肩の距離のグラフ
-    axs[0].plot(frame_distances)
-    if initial_distance is not None:  # initial_distanceがNoneでない場合のみ実行
+    if frame_distances:
+        axs[0].plot(frame_distances)
+    if initial_distance is not None:
         axs[0].axhline(y=initial_distance, color='r', linestyle='--', label='Initial Distance')
     axs[0].set_xlabel('Frame')
     axs[0].set_ylabel('Ear to Shoulder Distance')
     axs[0].legend()
 
     # 三角形の面積のグラフ
-    axs[1].plot(frame_triangle_areas)
+    if frame_triangle_areas:
+        axs[1].plot(frame_triangle_areas)
     axs[1].set_xlabel('Frame')
     axs[1].set_ylabel('Triangle Area')
-    if initial_triangle_area is not None:  # initial_triangle_areaがNoneでない場合のみ実行
+    if initial_triangle_area is not None:
         axs[1].axhline(y=initial_triangle_area, color='r', linestyle='--', label='Initial Area')
     axs[1].legend()
 
     return fig
-
+    
 # Streamlitアプリケーションのメイン部分
 def main():
     st.title("肩こり予報アプリ")
@@ -285,6 +287,11 @@ def main():
         # グラフを描画
         fig = plot_graphs(frame_distances, frame_triangle_areas, initial_distance, initial_triangle_area)
         st.pyplot(fig)
+
+        if not frame_distances:
+           st.warning("耳と肩の距離のデータがありません。")
+        if not frame_triangle_areas:
+           st.warning("三角形の面積のデータがありません。")
         
         # 画像をサイドバーに並べて表示
         num_cols = 10  # 1行に表示する画像の数
