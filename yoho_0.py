@@ -222,10 +222,14 @@ def main():
                
         # 撮影開始時の三角形の面積を計算
         initial_triangle_area = calculate_triangle_area(keypoints_list[0], scores_list[0])
+　　　　if initial_triangle_area is None:
+    　　　　　initial_triangle_area = 0 
         
         # 三角形の面積の変化率を計算
         final_triangle_areas = [calculate_triangle_area(keypoints, scores) for keypoints, scores in zip(keypoints_list, scores_list)]
         final_triangle_areas = [area for area in final_triangle_areas if area is not None]
+
+
         if final_triangle_areas:
             final_triangle_area = np.mean(final_triangle_areas)
             if initial_triangle_area is not None:
