@@ -179,6 +179,10 @@ def main():
     # 撮影ボタンを作成
     if st.sidebar.button('撮影開始'):
         cap = cv.VideoCapture(0)
+        if not cap.isOpened():
+           st.error("カメラを開けませんでした。カメラが接続されているか確認してください。")
+           return
+            
         start_time = time.time()
         frame_list = []
         keypoints_list = []
