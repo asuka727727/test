@@ -16,7 +16,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install streamlit opencv-python
+        pip install streamlit opencv-python onnxruntime
+
     - name: Run Python script
       run: |
         python yoho_0.py
