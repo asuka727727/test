@@ -175,6 +175,32 @@ def main():
     st.sidebar.markdown("""★撮影ボタンを押す前のポイント★""")
     st.sidebar.markdown("""【1】肩の力を抜いてリラックスし、耳と肩の距離を遠ざけましょう""")
     st.sidebar.markdown("""【2】目の奥で軽く後頭部を押し、あごを軽く引きましょう""")
+
+     # カメラのアクセスを要求するHTMLとJavaScript
+    camera_access_code = """
+    <script>
+    function requestCameraAccess() {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
+                var video = document.createElement('video');
+                video.srcObject = stream;
+                video.width = 640;
+                video.height = 480;
+                document.body.appendChild(video);
+                video.play();
+            }).catch(function(err) {
+                console.log("An error occurred: " + err);
+            });
+        } else {
+            alert("Your browser does not support media devices.");
+        }
+    }
+    window.onload = requestCameraAccess;
+    </script>
+    """
+
+    # HTMLとJavaScriptをStreamlitに表示
+    st.markdown(camera_access_code, unsafe_allow_html=True)
     
     # 撮影ボタンを作成
     if st.sidebar.button('撮影開始'):
