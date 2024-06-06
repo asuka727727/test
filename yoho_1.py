@@ -186,7 +186,7 @@ def main():
     st.sidebar.markdown("""【2】目の奥で軽く後頭部を押し、あごを軽く引きましょう""")
     
     # 撮影ボタンを作成
-   webrtc_ctx = webrtc_streamer(
+    webrtc_ctx = webrtc_streamer(
         key="example",
         mode=WebRtcMode.SENDRECV,
         rtc_configuration=RTCConfiguration(
