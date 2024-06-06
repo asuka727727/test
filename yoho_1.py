@@ -4,6 +4,7 @@ import onnxruntime
 import copy
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, VideoProcessorBase, RTCConfiguration
+import threading
 import matplotlib.pyplot as plt
 import time
 import math
@@ -172,21 +173,9 @@ def plot_graphs(frame_distances, frame_triangle_areas, initial_distance, initial
 class VideoProcessor(VideoProcessorBase):
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
-
         keypoints, scores = run_inference(onnx_session, input_size, img)
         debug_img = draw_debug_with_line_lengths(img, keypoint_score_th, keypoints, scores)
-
         return av.VideoFrame.from_ndarray(debug_img, format="bgr24")
-
-webrtc_ctx = webrtc_streamer(
-    key="example",
-    mode=WebRtcMode.SENDRECV,
-    rtc_configuration=RTCConfiguration(
-        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-    ),
-    video_processor_factory=VideoProcessor,
-    async_processing=True,
-)
 
 # Streamlitアプリケーションのメイン部分
 def main():
@@ -197,25 +186,26 @@ def main():
     st.sidebar.markdown("""【2】目の奥で軽く後頭部を押し、あごを軽く引きましょう""")
     
     # 撮影ボタンを作成
-    if st.sidebar.button('撮影開始'):
-        status_indicator = st.sidebar.empty()
+   webrtc_ctx = webrtc_streamer(
+        key="example",
+        mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTCConfiguration(
+            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+        ),
+        video_processor_factory=VideoProcessor,
+        async_processing=True,
+    )
 
-        while True:
-            if webrtc_ctx.video_receiver:
-                try:
-                    video_frames = webrtc_ctx.video_receiver.get_frames(1)
-                except:
-                    status_indicator.error("カメラを開けません。カメラが接続されているか確認してください。")
-                    break
+    if st.button('撮影開始'):
+        status_indicator = st.empty()
 
-                if video_frames:
-                    frame = video_frames[0]
-                    debug_img = webrtc_ctx.video_processor(frame)
-                    st.sidebar.image(debug_img.to_ndarray(format="bgr24"), channels="BGR")
-            else:
-                status_indicator.warning("カメラが検出されませんでした。")
-                break
-            
+        def stop_recording():
+            status_indicator.info("撮影を終了しました。")
+            webrtc_ctx.video_receiver = None
+
+        timer = threading.Timer(60 * 60, stop_recording)  # 60分後に撮影を終了
+        timer.start()
+
         start_time = time.time()
         frame_list = []
         keypoints_list = []
@@ -225,32 +215,37 @@ def main():
         initial_distance = None
         initial_triangle_area = None
 
-        while time.time() - start_time < 30:
-            ret, frame = cap.read()
-            if not ret:
+        while webrtc_ctx.video_receiver:
+            try:
+                video_frames = webrtc_ctx.video_receiver.get_frames(1)
+            except:
+                status_indicator.error("カメラを開けません。カメラが接続されているか確認してください。")
                 break
 
-            if int(time.time() - start_time) % 1 == 0:
-                keypoints, scores = run_inference(onnx_session, input_size, frame)
-                keypoints_list.append(keypoints)
-                scores_list.append(scores)
-                debug_frame = draw_debug_with_line_lengths(frame, keypoint_score_th, keypoints, scores)
-                frame_list.append(debug_frame)
+            if video_frames:
+                frame = video_frames[0]
+                debug_img = webrtc_ctx.video_processor(frame)
+                st.image(debug_img.to_ndarray(format="bgr24"), channels="BGR")
 
-                distance = calculate_ear_shoulder_distance(keypoints, scores)
-                frame_distances.append(distance)
-                if initial_distance is None:
-                    initial_distance = distance
+                if int(time.time() - start_time) % 1 == 0:
+                    keypoints, scores = run_inference(onnx_session, input_size, frame.to_ndarray(format="bgr24"))
+                    keypoints_list.append(keypoints)
+                    scores_list.append(scores)
+                    frame_list.append(debug_img.to_ndarray(format="bgr24"))
 
-                triangle_area = calculate_triangle_area(keypoints, scores)
-                frame_triangle_areas.append(triangle_area)
-                if initial_triangle_area is None and triangle_area is not None:
-                    initial_triangle_area = triangle_area
-                
-            time.sleep(1) 
+                    distance = calculate_ear_shoulder_distance(keypoints, scores)
+                    frame_distances.append(distance)
+                    if initial_distance is None:
+                        initial_distance = distance
 
-        cap.release()
-        
+                    triangle_area = calculate_triangle_area(keypoints, scores)
+                    frame_triangle_areas.append(triangle_area)
+                    if initial_triangle_area is None and triangle_area is not None:
+                        initial_triangle_area = triangle_area
+
+            else:
+                status_indicator.warning("カメラが検出されませんでした。")
+                break
 
         # 耳と肩の距離の変化率を計算
         final_distances = [calculate_ear_shoulder_distance(keypoints, scores) for keypoints, scores in zip(keypoints_list, scores_list)]
@@ -259,16 +254,10 @@ def main():
             change_ratio = (final_distance - initial_distance) / initial_distance * 100
         else:
             change_ratio = None
-               
-        # 撮影開始時の三角形の面積を計算
-        initial_triangle_area = None
-        if keypoints_list and scores_list:
-           initial_triangle_area = calculate_triangle_area(keypoints_list[0], scores_list[0])
-        
+
         # 三角形の面積の変化率を計算
         final_triangle_areas = [calculate_triangle_area(keypoints, scores) for keypoints, scores in zip(keypoints_list, scores_list)]
         final_triangle_areas = [area for area in final_triangle_areas if area is not None]
-
 
         if final_triangle_areas:
             final_triangle_area = np.mean(final_triangle_areas)
@@ -280,30 +269,30 @@ def main():
             final_triangle_area = None
             triangle_area_change_ratio = None
 
-     # 肩こり予報を表示
+        # 肩こり予報を表示
         if change_ratio is not None and triangle_area_change_ratio is not None:
-         if change_ratio <= -20 or triangle_area_change_ratio >= 10:
-          st.markdown("""
-            <div style="font-size:17px;">
-                【肩こり予報：高】あなたの姿勢は肩こりになるリスクが高いです
-            </div>
-            <div style="font-size:14px;">
-                 <br>&#42;～&#42;ちょっと休憩して、リラックスしましょう&#42;～&#42;<br>
-                 <br>   <br>
-                 あなたの姿勢の推移です↓
-                 <br>   <br>
-            </div>
-        """, unsafe_allow_html=True)
+            if change_ratio <= -20 or triangle_area_change_ratio >= 10:
+                st.markdown("""
+                    <div style="font-size:17px;">
+                        【肩こり予報：高】あなたの姿勢は肩こりになるリスクが高いです
+                    </div>
+                    <div style="font-size:14px;">
+                        <br>&#42;～&#42;ちょっと休憩して、リラックスしましょう&#42;～&#42;<br>
+                        <br>   <br>
+                        あなたの姿勢の推移です↓
+                        <br>   <br>
+                    </div>
+                """, unsafe_allow_html=True)
 
-         elif change_ratio <= -10 and change_ratio > -20 or triangle_area_change_ratio >= 5 and triangle_area_change_ratio < 10:
-          st.markdown("""
-            <div style="font-size:17px;">
-                【肩こり予報：中】   あなたの姿勢は肩こりになるリスクが中程度です
-            </div>
-            <div style="font-size:14px;">
-                 <br>&#42;～&#42;ちょっと休憩して、リラックスしましょう&#42;～&#42;<br>
-                 <br>   <br>
-                 あなたの姿勢の推移です↓
+            elif change_ratio <= -10 and change_ratio > -20 or triangle_area_change_ratio >= 5 and triangle_area_change_ratio < 10:
+                st.markdown("""
+                    <div style="font-size:17px;">
+                        【肩こり予報：中】   あなたの姿勢は肩こりになるリスクが中程度です
+                    </div>
+                    <div style="font-size:14px;">
+                        <br>&#42;～&#42;ちょっと休憩して、リラックスしましょう&#42;～&#42;<br>
+                        <br>   <br>
+                        あなたの姿勢の推移です↓
                  <br>   <br>
             </div>
         """, unsafe_allow_html=True)
