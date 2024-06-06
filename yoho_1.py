@@ -1,9 +1,10 @@
 import cv2 as cv
 import numpy as np
 import onnxruntime
-import matplotlib.pyplot as plt
 import copy
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, VideoProcessorBase, RTCConfiguration
+import matplotlib.pyplot as plt
 import time
 import math
 import matplotlib.pyplot as plt
@@ -167,7 +168,26 @@ def plot_graphs(frame_distances, frame_triangle_areas, initial_distance, initial
     axs[1].legend()
 
     return fig
-    
+
+class VideoProcessor(VideoProcessorBase):
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+
+        keypoints, scores = run_inference(onnx_session, input_size, img)
+        debug_img = draw_debug_with_line_lengths(img, keypoint_score_th, keypoints, scores)
+
+        return av.VideoFrame.from_ndarray(debug_img, format="bgr24")
+
+webrtc_ctx = webrtc_streamer(
+    key="example",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration=RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    ),
+    video_processor_factory=VideoProcessor,
+    async_processing=True,
+)
+
 # Streamlitアプリケーションのメイン部分
 def main():
     st.title("肩こり予報アプリ")
@@ -178,10 +198,23 @@ def main():
     
     # 撮影ボタンを作成
     if st.sidebar.button('撮影開始'):
-        cap = cv.VideoCapture(0)
-        if not cap.isOpened():
-           st.error("カメラを開けませんでした。カメラが接続されているか確認してください。")
-        return
+        status_indicator = st.sidebar.empty()
+
+        while True:
+            if webrtc_ctx.video_receiver:
+                try:
+                    video_frames = webrtc_ctx.video_receiver.get_frames(1)
+                except:
+                    status_indicator.error("カメラを開けません。カメラが接続されているか確認してください。")
+                    break
+
+                if video_frames:
+                    frame = video_frames[0]
+                    debug_img = webrtc_ctx.video_processor(frame)
+                    st.sidebar.image(debug_img.to_ndarray(format="bgr24"), channels="BGR")
+            else:
+                status_indicator.warning("カメラが検出されませんでした。")
+                break
             
         start_time = time.time()
         frame_list = []
