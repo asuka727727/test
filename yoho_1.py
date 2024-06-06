@@ -203,7 +203,7 @@ def main():
             status_indicator.info("撮影を終了しました。")
             webrtc_ctx.video_receiver = None
 
-        timer = threading.Timer(60 * 60, stop_recording)  # 60分後に撮影を終了
+        timer = threading.Timer(60 * 1, stop_recording)  # 60分後に撮影を終了
         timer.start()
 
         start_time = time.time()
