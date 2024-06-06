@@ -206,7 +206,7 @@ def main():
     if st.sidebar.button('撮影開始'):
         cap = cv.VideoCapture(0)
         
-           return
+        return
             
         start_time = time.time()
         frame_list = []
